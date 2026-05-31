@@ -9,9 +9,11 @@ import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.util.StringConverter;
+import javafx.scene.Node;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.math.BigDecimal;
@@ -22,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
@@ -31,6 +34,8 @@ public class MainController {
     private final List<EntityConfig> entities = createEntityConfigs();
     private final Map<EntityConfig, TableView<Map<String, Object>>> tables = new HashMap<>();
     private final Map<EntityConfig, Map<String, TextField>> forms = new HashMap<>();
+    private final Map<EntityConfig, ObservableList<Map<String, Object>>> allTableRows = new HashMap<>();
+    private final Map<EntityConfig, TextField> searchFields = new HashMap<>();
 
     private ComboBox<Map<String, Object>> saleKlientCombo;
     private ComboBox<Map<String, Object>> salePracownikCombo;
@@ -42,16 +47,25 @@ public class MainController {
     private TextField saleIloscField;
     private TableView<CartItem> saleCartTable;
     private Label saleTotalLabel;
+    private Button submitSaleButton;
     private final ObservableList<CartItem> saleCartItems = FXCollections.observableArrayList();
+    private final List<Map<String, Object>> saleProduktMagazynRows = new ArrayList<>();
 
     private TableView<SalesRow> salesTable;
     private TableView<SalesDetailRow> salesDetailsTable;
+    private TextField salesSearchField;
     private Label salesSummaryLabel;
     private final ObservableList<SalesRow> salesRows = FXCollections.observableArrayList();
+    private final ObservableList<SalesRow> allSalesRows = FXCollections.observableArrayList();
     private final ObservableList<SalesDetailRow> allSalesDetails = FXCollections.observableArrayList();
 
     @FXML
-    private TabPane entityTabs;
+    private ListView<String> navigationList;
+
+    @FXML
+    private StackPane contentPane;
+
+    private final Map<String, Node> pages = new LinkedHashMap<>();
 
     @FXML
     private Label statusLabel;
@@ -62,28 +76,38 @@ public class MainController {
     @FXML
     private void initialize() {
         apiInfoLabel.setText("API: " + apiClient.getBaseUrl());
-        buildTabs();
+        buildNavigation();
         entities.forEach(this::loadEntity);
         refreshSaleDictionaries();
         loadSalesOverview();
     }
 
-    private void buildTabs() {
-        Tab saleTab = new Tab("Sprzedaż");
-        saleTab.setClosable(false);
-        saleTab.setContent(createSaleView());
-        entityTabs.getTabs().add(saleTab);
-
-        Tab salesOverviewTab = new Tab("Sprzedaże");
-        salesOverviewTab.setClosable(false);
-        salesOverviewTab.setContent(createSalesOverviewView());
-        entityTabs.getTabs().add(salesOverviewTab);
+    private void buildNavigation() {
+        pages.clear();
+        pages.put("Sprzedaż", createSaleView());
+        pages.put("Sprzedaże", createSalesOverviewView());
 
         for (EntityConfig entity : entities) {
-            Tab tab = new Tab(entity.name());
-            tab.setClosable(false);
-            tab.setContent(createEntityView(entity));
-            entityTabs.getTabs().add(tab);
+            pages.put(entity.name(), createEntityView(entity));
+        }
+
+        navigationList.setItems(FXCollections.observableArrayList(pages.keySet()));
+        navigationList.getSelectionModel().selectedItemProperty().addListener((obs, oldValue, newValue) -> showPage(newValue));
+
+        if (!navigationList.getItems().isEmpty()) {
+            navigationList.getSelectionModel().selectFirst();
+        }
+    }
+
+    private void showPage(String pageName) {
+        if (pageName == null) {
+            return;
+        }
+
+        Node page = pages.get(pageName);
+        if (page != null) {
+            contentPane.getChildren().setAll(page);
+            setStatus("Widok: " + pageName);
         }
     }
 
@@ -122,7 +146,7 @@ public class MainController {
         Button addToCartButton = new Button("Dodaj produkt do koszyka");
         Button removeFromCartButton = new Button("Usuń pozycję z koszyka");
         Button clearCartButton = new Button("Wyczyść koszyk");
-        Button submitSaleButton = new Button("Zatwierdź sprzedaż");
+        submitSaleButton = new Button("Zatwierdź sprzedaż");
 
         refreshButton.setOnAction(event -> refreshSaleDictionaries());
         addToCartButton.setOnAction(event -> addSelectedProductToCart());
@@ -216,6 +240,7 @@ public class MainController {
                     data.put("formyDostawy", apiClient.getList("/formyDostawy"));
                     data.put("firmyDostawcze", apiClient.getList("/firmyDostawcze"));
                     data.put("produkty", apiClient.getList("/produkty"));
+                    data.put("produktMagazyn", apiClient.getList("/produktMagazyn"));
                     return data;
                 },
                 data -> {
@@ -226,7 +251,11 @@ public class MainController {
                     setComboItems(saleFormaDostawyCombo, data.get("formyDostawy"));
                     setComboItems(saleFirmaDostawczaCombo, data.get("firmyDostawcze"));
                     setComboItems(saleProduktCombo, data.get("produkty"));
-                    setStatus("Dane do sprzedaży odświeżone.");
+
+                    saleProduktMagazynRows.clear();
+                    saleProduktMagazynRows.addAll(data.getOrDefault("produktMagazyn", List.of()));
+
+                    setStatus("Dane do sprzedaży odświeżone. Stany magazynowe pobrane.");
                 }
         );
     }
@@ -298,6 +327,26 @@ public class MainController {
         int productId = toInt(product.get("id_produktu"));
         String productName = String.valueOf(product.getOrDefault("nazwa", "Produkt #" + productId));
 
+        int availableStock = getAvailableStock(productId, saleProduktMagazynRows);
+        int quantityAlreadyInCart = getQuantityInCart(productId);
+
+        if (availableStock <= 0) {
+            setStatus("Produkt niedostępny w magazynie: " + productName);
+            return;
+        }
+
+        if (quantityAlreadyInCart + quantity > availableStock) {
+            setStatus(
+                    "Nie można dodać produktu. Dostępne: "
+                            + availableStock
+                            + ", w koszyku: "
+                            + quantityAlreadyInCart
+                            + ", próba dodania: "
+                            + quantity
+            );
+            return;
+        }
+
         for (CartItem item : saleCartItems) {
             if (item.getIdProduktu() == productId && item.getCenaZakupu().compareTo(price) == 0) {
                 item.setIlosc(item.getIlosc() + quantity);
@@ -357,8 +406,22 @@ public class MainController {
         }
 
         setStatus("Tworzę sprzedaż...");
+        if (submitSaleButton != null) {
+            submitSaleButton.setDisable(true);
+        }
+
         runInBackground(
-                () -> createSaleRequest(klient, pracownik, status, formaPlatnosci, formaDostawy, firma),
+                () -> {
+                    try {
+                        return createSaleRequest(klient, pracownik, status, formaPlatnosci, formaDostawy, firma);
+                    } finally {
+                        Platform.runLater(() -> {
+                            if (submitSaleButton != null) {
+                                submitSaleButton.setDisable(false);
+                            }
+                        });
+                    }
+                },
                 result -> {
                     saleCartItems.clear();
                     updateSaleTotal();
@@ -388,6 +451,9 @@ public class MainController {
         Integer createdDostawaId = null;
         Integer createdZamowienieId = null;
 
+        List<Map<String, Object>> currentStockRows = apiClient.getList("/produktMagazyn");
+        validateCartAgainstStock(currentStockRows);
+
         try {
             Map<String, Object> dostawaPayload = new LinkedHashMap<>();
             dostawaPayload.put("id_formy_dostawy", toInt(formaDostawy.get("id_formy_dostawy")));
@@ -414,9 +480,14 @@ public class MainController {
                 apiClient.create("/pozycje_zamowienia", positionPayload);
             }
 
+            decreaseStockAfterSale(currentStockRows);
+
             BigDecimal total = saleCartItems.stream()
                     .map(CartItem::getWartosc)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            saleProduktMagazynRows.clear();
+            saleProduktMagazynRows.addAll(apiClient.getList("/produktMagazyn"));
 
             return "Sprzedaż zapisana. ID zamówienia: " + createdZamowienieId + ", suma: " + total.toPlainString();
         } catch (Exception e) {
@@ -438,6 +509,94 @@ public class MainController {
         }
     }
 
+    private void validateCartAgainstStock(List<Map<String, Object>> stockRows) {
+        for (CartItem item : saleCartItems) {
+            int availableStock = getAvailableStock(item.getIdProduktu(), stockRows);
+            int requestedQuantity = getQuantityInCart(item.getIdProduktu());
+
+            if (requestedQuantity > availableStock) {
+                throw new IllegalArgumentException(
+                        "Brak wystarczającej ilości produktu: "
+                                + item.getProduktLabel()
+                                + ". Dostępne: "
+                                + availableStock
+                                + ", wymagane: "
+                                + requestedQuantity
+                );
+            }
+        }
+    }
+
+    private int getAvailableStock(int productId, List<Map<String, Object>> stockRows) {
+        if (stockRows == null) {
+            return 0;
+        }
+
+        int total = 0;
+        for (Map<String, Object> row : stockRows) {
+            Object rowProductId = row.get("id_produktu");
+            Object quantity = row.get("ilosc");
+
+            if (rowProductId != null && quantity != null && toInt(rowProductId) == productId) {
+                total += toInt(quantity);
+            }
+        }
+        return total;
+    }
+
+    private int getQuantityInCart(int productId) {
+        int total = 0;
+        for (CartItem item : saleCartItems) {
+            if (item.getIdProduktu() == productId) {
+                total += item.getIlosc();
+            }
+        }
+        return total;
+    }
+
+    private void decreaseStockAfterSale(List<Map<String, Object>> stockRows) throws Exception {
+        Map<Integer, Integer> quantitiesToDecrease = new LinkedHashMap<>();
+
+        for (CartItem item : saleCartItems) {
+            quantitiesToDecrease.merge(item.getIdProduktu(), item.getIlosc(), Integer::sum);
+        }
+
+        for (Map.Entry<Integer, Integer> entry : quantitiesToDecrease.entrySet()) {
+            int productId = entry.getKey();
+            int remainingToDecrease = entry.getValue();
+
+            for (Map<String, Object> stockRow : stockRows) {
+                if (remainingToDecrease <= 0) {
+                    break;
+                }
+
+                if (toInt(stockRow.get("id_produktu")) != productId) {
+                    continue;
+                }
+
+                int stockRowId = toInt(stockRow.get("id"));
+                int currentQuantity = toInt(stockRow.get("ilosc"));
+                int usedQuantity = Math.min(currentQuantity, remainingToDecrease);
+                int newQuantity = currentQuantity - usedQuantity;
+
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("id_produktu", toInt(stockRow.get("id_produktu")));
+                payload.put("id_magazynu", toInt(stockRow.get("id_magazynu")));
+                payload.put("ilosc", newQuantity);
+
+                apiClient.update("/produktMagazyn/" + stockRowId, payload);
+
+                remainingToDecrease -= usedQuantity;
+            }
+
+            if (remainingToDecrease > 0) {
+                throw new IllegalStateException(
+                        "Nie udało się zaktualizować stanu magazynowego produktu #" + productId
+                );
+            }
+        }
+    }
+
     private int toInt(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -447,7 +606,10 @@ public class MainController {
 
     private void refreshCrudTablesAfterSale() {
         for (EntityConfig entity : entities) {
-            if ("Dostawy".equals(entity.name()) || "Zamówienia".equals(entity.name()) || "Pozycje zamówienia".equals(entity.name())) {
+            if ("Dostawy".equals(entity.name())
+                    || "Zamówienia".equals(entity.name())
+                    || "Pozycje zamówienia".equals(entity.name())
+                    || "Produkt-magazyn".equals(entity.name())) {
                 loadEntity(entity);
             }
         }
@@ -463,6 +625,15 @@ public class MainController {
 
         Button refreshButton = new Button("Odśwież sprzedaże");
         refreshButton.setOnAction(event -> loadSalesOverview());
+
+        salesSearchField = new TextField();
+        salesSearchField.setPromptText("Szukaj sprzedaży po ID, dacie, kliencie, pracowniku, statusie, płatności lub wartości");
+        salesSearchField.textProperty().addListener((obs, oldText, newText) -> applySalesFilter());
+
+        Button clearSalesSearchButton = new Button("Wyczyść wyszukiwanie");
+        clearSalesSearchButton.setOnAction(event -> salesSearchField.clear());
+
+        HBox salesToolbar = new HBox(10, refreshButton, clearSalesSearchButton);
 
         salesTable = new TableView<>();
         salesTable.setPrefHeight(280);
@@ -497,7 +668,7 @@ public class MainController {
 
         VBox.setVgrow(salesTable, Priority.ALWAYS);
         VBox.setVgrow(salesDetailsTable, Priority.ALWAYS);
-        root.getChildren().addAll(title, refreshButton, salesTable, detailsTitle, salesDetailsTable, salesSummaryLabel);
+        root.getChildren().addAll(title, salesToolbar, salesSearchField, salesTable, detailsTitle, salesDetailsTable, salesSummaryLabel);
         return root;
     }
 
@@ -535,14 +706,9 @@ public class MainController {
                     return buildSalesOverviewRows(data);
                 },
                 overview -> {
-                    salesRows.setAll(overview.rows());
+                    allSalesRows.setAll(overview.rows());
                     allSalesDetails.setAll(overview.details());
-                    if (!salesRows.isEmpty()) {
-                        salesTable.getSelectionModel().selectFirst();
-                    } else {
-                        salesDetailsTable.setItems(FXCollections.observableArrayList());
-                    }
-                    salesSummaryLabel.setText("Sprzedaże: " + salesRows.size() + ", łączna wartość: " + overview.total().toPlainString());
+                    applySalesFilter();
                     setStatus("Odświeżono widok sprzedaży.");
                 }
         );
@@ -674,6 +840,51 @@ public class MainController {
         }
     }
 
+    private void applySalesFilter() {
+        if (salesTable == null) {
+            return;
+        }
+
+        String query = salesSearchField == null || salesSearchField.getText() == null
+                ? ""
+                : salesSearchField.getText().trim().toLowerCase();
+
+        List<SalesRow> filteredRows;
+        if (query.isEmpty()) {
+            filteredRows = new ArrayList<>(allSalesRows);
+        } else {
+            filteredRows = allSalesRows.stream()
+                    .filter(row -> row.matches(query))
+                    .toList();
+        }
+
+        salesRows.setAll(filteredRows);
+
+        if (!salesRows.isEmpty()) {
+            salesTable.getSelectionModel().selectFirst();
+        } else if (salesDetailsTable != null) {
+            salesDetailsTable.setItems(FXCollections.observableArrayList());
+        }
+
+        BigDecimal filteredTotal = salesRows.stream()
+                .map(row -> toBigDecimal(row.getWartosc()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal total = allSalesRows.stream()
+                .map(row -> toBigDecimal(row.getWartosc()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (salesSummaryLabel != null) {
+            if (query.isEmpty()) {
+                salesSummaryLabel.setText("Sprzedaże: " + salesRows.size() + ", łączna wartość: " + total.toPlainString());
+            } else {
+                salesSummaryLabel.setText("Wyniki: " + salesRows.size() + " z " + allSalesRows.size()
+                        + ", wartość wyników: " + filteredTotal.toPlainString()
+                        + ", łączna wartość: " + total.toPlainString());
+            }
+        }
+    }
+
     private void showSalesDetails(SalesRow row) {
         if (salesDetailsTable == null) {
             return;
@@ -706,6 +917,11 @@ public class MainController {
             });
             table.getColumns().add(tableColumn);
         }
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Szukaj w tabeli: " + entity.name());
+        searchFields.put(entity, searchField);
+        searchField.textProperty().addListener((obs, oldText, newText) -> applyEntityFilter(entity));
 
         HBox buttons = new HBox(10);
         Button refreshButton = new Button("Odśwież");
@@ -754,7 +970,7 @@ public class MainController {
         });
 
         VBox.setVgrow(table, Priority.ALWAYS);
-        root.getChildren().addAll(buttons, table, formTitle, form);
+        root.getChildren().addAll(buttons, searchField, table, formTitle, form);
         return root;
     }
 
@@ -785,10 +1001,43 @@ public class MainController {
         runInBackground(
                 () -> apiClient.getList(entity.listPath()),
                 rows -> {
-                    tables.get(entity).setItems(FXCollections.observableArrayList(rows));
+                    allTableRows.put(entity, FXCollections.observableArrayList(rows));
+                    applyEntityFilter(entity);
                     setStatus("Pobrano: " + entity.name() + " (" + rows.size() + ")");
                 }
         );
+    }
+
+    private void applyEntityFilter(EntityConfig entity) {
+        TableView<Map<String, Object>> table = tables.get(entity);
+        if (table == null) {
+            return;
+        }
+
+        ObservableList<Map<String, Object>> rows = allTableRows.get(entity);
+        if (rows == null) {
+            rows = FXCollections.observableArrayList();
+        }
+
+        TextField searchField = searchFields.get(entity);
+        String query = searchField == null || searchField.getText() == null
+                ? ""
+                : searchField.getText().trim().toLowerCase();
+
+        if (query.isEmpty()) {
+            table.setItems(FXCollections.observableArrayList(rows));
+            return;
+        }
+
+        List<Map<String, Object>> filteredRows = rows.stream()
+                .filter(row -> row.values().stream()
+                        .filter(value -> value != null)
+                        .map(String::valueOf)
+                        .map(String::toLowerCase)
+                        .anyMatch(value -> value.contains(query)))
+                .toList();
+
+        table.setItems(FXCollections.observableArrayList(filteredRows));
     }
 
     private void addEntity(EntityConfig entity) {
@@ -852,6 +1101,17 @@ public class MainController {
         Object id = selected.get(entity.idField());
         if (id == null) {
             setStatus("Nie można odczytać ID zaznaczonego rekordu.");
+            return;
+        }
+
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.setTitle("Potwierdzenie usunięcia");
+        confirmation.setHeaderText("Usunąć rekord z: " + entity.name() + "?");
+        confirmation.setContentText("ID rekordu: " + id + "\nTej operacji nie można łatwo cofnąć.");
+
+        Optional<ButtonType> answer = confirmation.showAndWait();
+        if (answer.isEmpty() || answer.get() != ButtonType.OK) {
+            setStatus("Usuwanie anulowane.");
             return;
         }
 
@@ -960,6 +1220,20 @@ public class MainController {
             this.formaPlatnosci = formaPlatnosci;
             this.dostawa = dostawa;
             this.wartosc = wartosc;
+        }
+
+        public boolean matches(String query) {
+            String combined = String.join(" ",
+                    idZamowienia,
+                    data,
+                    klient,
+                    pracownik,
+                    status,
+                    formaPlatnosci,
+                    dostawa,
+                    wartosc
+            ).toLowerCase();
+            return combined.contains(query);
         }
 
         public String getIdZamowienia() { return idZamowienia; }

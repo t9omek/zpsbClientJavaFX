@@ -1,41 +1,29 @@
-# JavaFX klient zpsbAPI
+# JavaFX API Client - kontrola magazynu
 
-Aplikacja JavaFX konsumująca API FastAPI z projektu `zpsbAPI`.
+Wersja zawiera zmianę w flow sprzedaży:
 
-## Funkcje
+- pobiera stany z endpointu `GET /produktMagazyn`,
+- blokuje dodanie do koszyka ilości większej niż dostępna w magazynie,
+- ponownie sprawdza stan magazynu przed zatwierdzeniem sprzedaży,
+- po zapisaniu sprzedaży zmniejsza stan magazynowy przez `PUT /produktMagazyn/{id}`.
 
-- CRUD dla głównych encji API: klienci, adresy, pracownicy, statusy, dostawy, produkty, magazyny, zamówienia i pozycje zamówień.
-- Zakładka **Sprzedaż** pozwalająca przejść flow sprzedaży bez zmian w backendzie:
-  1. wybór klienta, pracownika, statusu, płatności i dostawy,
-  2. dodanie produktów do koszyka,
-  3. utworzenie dostawy,
-  4. utworzenie zamówienia,
-  5. utworzenie pozycji zamówienia.
-- Zakładka **Sprzedaże** pokazująca listę sprzedaży/zamówień, ich status, klienta, pracownika, formę płatności, dostawę oraz wartość. Po kliknięciu sprzedaży widoczne są jej pozycje.
+Konfiguracja API znajduje się w:
 
-## Uruchomienie
-
-Najpierw uruchom backend:
-
-```bash
-uvicorn server:app --reload
+```text
+src/main/resources/app.properties
 ```
 
-Potem uruchom klienta:
+Uruchomienie:
 
 ```bash
 mvn javafx:run
 ```
 
-Domyślna konfiguracja API:
+Backend FastAPI powinien działać na adresie z `app.properties`.
 
-```text
-http://127.0.0.1:8000
-x-api-key: tajny-klucz-123
-```
+## Dodatkowe poprawki UX
 
-Możesz zmienić adres i klucz przez parametry JVM:
-
-```bash
-mvn javafx:run -Dapi.baseUrl=http://127.0.0.1:8000 -Dapi.key=tajny-klucz-123
-```
+W tej wersji dodano:
+- wyszukiwarkę nad każdą tabelą CRUD,
+- okno potwierdzenia przed usunięciem rekordu,
+- blokadę przycisku „Zatwierdź sprzedaż” podczas zapisu, aby uniknąć podwójnego utworzenia zamówienia.

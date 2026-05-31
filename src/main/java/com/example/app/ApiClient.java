@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 public class ApiClient {
 
@@ -23,12 +24,34 @@ public class ApiClient {
     private final String apiKey;
 
     public ApiClient() {
-        this.baseUrl = System.getProperty("api.baseUrl", DEFAULT_BASE_URL);
-        this.apiKey = System.getProperty("api.key", DEFAULT_API_KEY);
+        Properties properties = loadProperties();
+
+        this.baseUrl = System.getProperty(
+                "api.baseUrl",
+                properties.getProperty("api.baseUrl", DEFAULT_BASE_URL)
+        );
+        this.apiKey = System.getProperty(
+                "api.key",
+                properties.getProperty("api.key", DEFAULT_API_KEY)
+        );
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
         this.objectMapper = new ObjectMapper();
+    }
+
+    private Properties loadProperties() {
+        Properties properties = new Properties();
+
+        try (var inputStream = ApiClient.class.getResourceAsStream("/app.properties")) {
+            if (inputStream != null) {
+                properties.load(inputStream);
+            }
+        } catch (IOException e) {
+            System.err.println("Nie udało się wczytać app.properties: " + e.getMessage());
+        }
+
+        return properties;
     }
 
     public String getBaseUrl() {
