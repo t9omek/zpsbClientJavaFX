@@ -20,3 +20,10 @@ mvn javafx:run
 ```
 
 Backend FastAPI powinien działać na adresie z `app.properties`.
+
+## Dodatkowe poprawki UX
+
+W tej wersji dodano:
+- wyszukiwarkę nad każdą tabelą CRUD,
+- okno potwierdzenia przed usunięciem rekordu,
+- blokadę przycisku „Zatwierdź sprzedaż” podczas zapisu, aby uniknąć podwójnego utworzenia zamówienia.

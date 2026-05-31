@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
@@ -33,6 +34,8 @@ public class MainController {
     private final List<EntityConfig> entities = createEntityConfigs();
     private final Map<EntityConfig, TableView<Map<String, Object>>> tables = new HashMap<>();
     private final Map<EntityConfig, Map<String, TextField>> forms = new HashMap<>();
+    private final Map<EntityConfig, ObservableList<Map<String, Object>>> allTableRows = new HashMap<>();
+    private final Map<EntityConfig, TextField> searchFields = new HashMap<>();
 
     private ComboBox<Map<String, Object>> saleKlientCombo;
     private ComboBox<Map<String, Object>> salePracownikCombo;
@@ -44,13 +47,16 @@ public class MainController {
     private TextField saleIloscField;
     private TableView<CartItem> saleCartTable;
     private Label saleTotalLabel;
+    private Button submitSaleButton;
     private final ObservableList<CartItem> saleCartItems = FXCollections.observableArrayList();
     private final List<Map<String, Object>> saleProduktMagazynRows = new ArrayList<>();
 
     private TableView<SalesRow> salesTable;
     private TableView<SalesDetailRow> salesDetailsTable;
+    private TextField salesSearchField;
     private Label salesSummaryLabel;
     private final ObservableList<SalesRow> salesRows = FXCollections.observableArrayList();
+    private final ObservableList<SalesRow> allSalesRows = FXCollections.observableArrayList();
     private final ObservableList<SalesDetailRow> allSalesDetails = FXCollections.observableArrayList();
 
     @FXML
@@ -140,7 +146,7 @@ public class MainController {
         Button addToCartButton = new Button("Dodaj produkt do koszyka");
         Button removeFromCartButton = new Button("Usuń pozycję z koszyka");
         Button clearCartButton = new Button("Wyczyść koszyk");
-        Button submitSaleButton = new Button("Zatwierdź sprzedaż");
+        submitSaleButton = new Button("Zatwierdź sprzedaż");
 
         refreshButton.setOnAction(event -> refreshSaleDictionaries());
         addToCartButton.setOnAction(event -> addSelectedProductToCart());
@@ -400,8 +406,22 @@ public class MainController {
         }
 
         setStatus("Tworzę sprzedaż...");
+        if (submitSaleButton != null) {
+            submitSaleButton.setDisable(true);
+        }
+
         runInBackground(
-                () -> createSaleRequest(klient, pracownik, status, formaPlatnosci, formaDostawy, firma),
+                () -> {
+                    try {
+                        return createSaleRequest(klient, pracownik, status, formaPlatnosci, formaDostawy, firma);
+                    } finally {
+                        Platform.runLater(() -> {
+                            if (submitSaleButton != null) {
+                                submitSaleButton.setDisable(false);
+                            }
+                        });
+                    }
+                },
                 result -> {
                     saleCartItems.clear();
                     updateSaleTotal();
@@ -606,6 +626,15 @@ public class MainController {
         Button refreshButton = new Button("Odśwież sprzedaże");
         refreshButton.setOnAction(event -> loadSalesOverview());
 
+        salesSearchField = new TextField();
+        salesSearchField.setPromptText("Szukaj sprzedaży po ID, dacie, kliencie, pracowniku, statusie, płatności lub wartości");
+        salesSearchField.textProperty().addListener((obs, oldText, newText) -> applySalesFilter());
+
+        Button clearSalesSearchButton = new Button("Wyczyść wyszukiwanie");
+        clearSalesSearchButton.setOnAction(event -> salesSearchField.clear());
+
+        HBox salesToolbar = new HBox(10, refreshButton, clearSalesSearchButton);
+
         salesTable = new TableView<>();
         salesTable.setPrefHeight(280);
         salesTable.setItems(salesRows);
@@ -639,7 +668,7 @@ public class MainController {
 
         VBox.setVgrow(salesTable, Priority.ALWAYS);
         VBox.setVgrow(salesDetailsTable, Priority.ALWAYS);
-        root.getChildren().addAll(title, refreshButton, salesTable, detailsTitle, salesDetailsTable, salesSummaryLabel);
+        root.getChildren().addAll(title, salesToolbar, salesSearchField, salesTable, detailsTitle, salesDetailsTable, salesSummaryLabel);
         return root;
     }
 
@@ -677,14 +706,9 @@ public class MainController {
                     return buildSalesOverviewRows(data);
                 },
                 overview -> {
-                    salesRows.setAll(overview.rows());
+                    allSalesRows.setAll(overview.rows());
                     allSalesDetails.setAll(overview.details());
-                    if (!salesRows.isEmpty()) {
-                        salesTable.getSelectionModel().selectFirst();
-                    } else {
-                        salesDetailsTable.setItems(FXCollections.observableArrayList());
-                    }
-                    salesSummaryLabel.setText("Sprzedaże: " + salesRows.size() + ", łączna wartość: " + overview.total().toPlainString());
+                    applySalesFilter();
                     setStatus("Odświeżono widok sprzedaży.");
                 }
         );
@@ -816,6 +840,51 @@ public class MainController {
         }
     }
 
+    private void applySalesFilter() {
+        if (salesTable == null) {
+            return;
+        }
+
+        String query = salesSearchField == null || salesSearchField.getText() == null
+                ? ""
+                : salesSearchField.getText().trim().toLowerCase();
+
+        List<SalesRow> filteredRows;
+        if (query.isEmpty()) {
+            filteredRows = new ArrayList<>(allSalesRows);
+        } else {
+            filteredRows = allSalesRows.stream()
+                    .filter(row -> row.matches(query))
+                    .toList();
+        }
+
+        salesRows.setAll(filteredRows);
+
+        if (!salesRows.isEmpty()) {
+            salesTable.getSelectionModel().selectFirst();
+        } else if (salesDetailsTable != null) {
+            salesDetailsTable.setItems(FXCollections.observableArrayList());
+        }
+
+        BigDecimal filteredTotal = salesRows.stream()
+                .map(row -> toBigDecimal(row.getWartosc()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal total = allSalesRows.stream()
+                .map(row -> toBigDecimal(row.getWartosc()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (salesSummaryLabel != null) {
+            if (query.isEmpty()) {
+                salesSummaryLabel.setText("Sprzedaże: " + salesRows.size() + ", łączna wartość: " + total.toPlainString());
+            } else {
+                salesSummaryLabel.setText("Wyniki: " + salesRows.size() + " z " + allSalesRows.size()
+                        + ", wartość wyników: " + filteredTotal.toPlainString()
+                        + ", łączna wartość: " + total.toPlainString());
+            }
+        }
+    }
+
     private void showSalesDetails(SalesRow row) {
         if (salesDetailsTable == null) {
             return;
@@ -848,6 +917,11 @@ public class MainController {
             });
             table.getColumns().add(tableColumn);
         }
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Szukaj w tabeli: " + entity.name());
+        searchFields.put(entity, searchField);
+        searchField.textProperty().addListener((obs, oldText, newText) -> applyEntityFilter(entity));
 
         HBox buttons = new HBox(10);
         Button refreshButton = new Button("Odśwież");
@@ -896,7 +970,7 @@ public class MainController {
         });
 
         VBox.setVgrow(table, Priority.ALWAYS);
-        root.getChildren().addAll(buttons, table, formTitle, form);
+        root.getChildren().addAll(buttons, searchField, table, formTitle, form);
         return root;
     }
 
@@ -927,10 +1001,43 @@ public class MainController {
         runInBackground(
                 () -> apiClient.getList(entity.listPath()),
                 rows -> {
-                    tables.get(entity).setItems(FXCollections.observableArrayList(rows));
+                    allTableRows.put(entity, FXCollections.observableArrayList(rows));
+                    applyEntityFilter(entity);
                     setStatus("Pobrano: " + entity.name() + " (" + rows.size() + ")");
                 }
         );
+    }
+
+    private void applyEntityFilter(EntityConfig entity) {
+        TableView<Map<String, Object>> table = tables.get(entity);
+        if (table == null) {
+            return;
+        }
+
+        ObservableList<Map<String, Object>> rows = allTableRows.get(entity);
+        if (rows == null) {
+            rows = FXCollections.observableArrayList();
+        }
+
+        TextField searchField = searchFields.get(entity);
+        String query = searchField == null || searchField.getText() == null
+                ? ""
+                : searchField.getText().trim().toLowerCase();
+
+        if (query.isEmpty()) {
+            table.setItems(FXCollections.observableArrayList(rows));
+            return;
+        }
+
+        List<Map<String, Object>> filteredRows = rows.stream()
+                .filter(row -> row.values().stream()
+                        .filter(value -> value != null)
+                        .map(String::valueOf)
+                        .map(String::toLowerCase)
+                        .anyMatch(value -> value.contains(query)))
+                .toList();
+
+        table.setItems(FXCollections.observableArrayList(filteredRows));
     }
 
     private void addEntity(EntityConfig entity) {
@@ -994,6 +1101,17 @@ public class MainController {
         Object id = selected.get(entity.idField());
         if (id == null) {
             setStatus("Nie można odczytać ID zaznaczonego rekordu.");
+            return;
+        }
+
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.setTitle("Potwierdzenie usunięcia");
+        confirmation.setHeaderText("Usunąć rekord z: " + entity.name() + "?");
+        confirmation.setContentText("ID rekordu: " + id + "\nTej operacji nie można łatwo cofnąć.");
+
+        Optional<ButtonType> answer = confirmation.showAndWait();
+        if (answer.isEmpty() || answer.get() != ButtonType.OK) {
+            setStatus("Usuwanie anulowane.");
             return;
         }
 
@@ -1102,6 +1220,20 @@ public class MainController {
             this.formaPlatnosci = formaPlatnosci;
             this.dostawa = dostawa;
             this.wartosc = wartosc;
+        }
+
+        public boolean matches(String query) {
+            String combined = String.join(" ",
+                    idZamowienia,
+                    data,
+                    klient,
+                    pracownik,
+                    status,
+                    formaPlatnosci,
+                    dostawa,
+                    wartosc
+            ).toLowerCase();
+            return combined.contains(query);
         }
 
         public String getIdZamowienia() { return idZamowienia; }
