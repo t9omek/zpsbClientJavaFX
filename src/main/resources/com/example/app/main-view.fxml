@@ -2,8 +2,10 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
 <VBox xmlns="http://javafx.com/javafx"
@@ -16,13 +18,28 @@
         <Insets top="18" right="18" bottom="18" left="18"/>
     </padding>
 
-    <Label text="zpsbAPI - klient JavaFX" styleClass="title"/>
-
-    <HBox spacing="16">
+    <HBox spacing="16" styleClass="top-bar">
+        <VBox spacing="2">
+            <Label text="zpsbAPI" styleClass="title"/>
+            <Label text="Klient JavaFX do obsługi sprzedaży i danych API" styleClass="subtitle"/>
+        </VBox>
         <Label fx:id="apiInfoLabel" text="API:" styleClass="api-info"/>
     </HBox>
 
-    <TabPane fx:id="entityTabs" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS"/>
+    <BorderPane VBox.vgrow="ALWAYS" styleClass="app-shell">
+        <left>
+            <VBox spacing="10" styleClass="sidebar">
+                <Label text="Menu" styleClass="sidebar-title"/>
+                <ListView fx:id="navigationList"
+                          prefWidth="220"
+                          VBox.vgrow="ALWAYS"
+                          styleClass="nav-list"/>
+            </VBox>
+        </left>
+        <center>
+            <StackPane fx:id="contentPane" styleClass="content-pane"/>
+        </center>
+    </BorderPane>
 
     <Label fx:id="statusLabel"
            text="Gotowe do pracy."

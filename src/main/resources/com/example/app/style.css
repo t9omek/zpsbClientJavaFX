@@ -1,31 +1,217 @@
 .root {
     -fx-font-family: "Segoe UI", "Arial";
-    -fx-background-color: #f6f7fb;
+    -fx-background-color: #f4f5f7;
+}
+
+/* Górny pasek */
+.top-bar {
+    -fx-alignment: center-left;
+    -fx-padding: 0 0 6 0;
 }
 
 .title {
-    -fx-font-size: 24px;
+    -fx-font-size: 26px;
     -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #6b7280;
+}
+
+/* Główna ramka aplikacji */
+.app-shell {
+    -fx-background-color: transparent;
+}
+
+/* Menu boczne */
+.sidebar {
+    -fx-background-color: #e5e7eb;
+    -fx-background-radius: 14;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 14, 0, 0, 4);
+}
+
+.sidebar-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+/* Lista menu bocznego — tylko navigationList */
+.nav-list {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4 0 0 0;
+}
+
+.nav-list .list-cell {
+    -fx-padding: 10 12 10 12;
+    -fx-background-radius: 10;
+    -fx-font-size: 13px;
+    -fx-text-fill: #374151;
+    -fx-background-color: transparent;
+}
+
+.nav-list .list-cell:filled:hover {
+    -fx-background-color: #d1d5db;
+    -fx-text-fill: #111827;
+}
+
+.nav-list .list-cell:filled:selected {
+    -fx-background-color: #6b7280;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+/* Dropdowny ComboBox — normalne, widoczne tło */
+.combo-box-popup .list-view {
+    -fx-background-color: white;
+    -fx-border-color: #d1d5db;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.combo-box-popup .list-cell {
+    -fx-background-color: white;
+    -fx-text-fill: #111827;
+    -fx-padding: 8 10 8 10;
+}
+
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: #f3f4f6;
+    -fx-text-fill: #111827;
+}
+
+.combo-box-popup .list-cell:selected {
+    -fx-background-color: #d1d5db;
+    -fx-text-fill: #111827;
+}
+
+/* Główna zawartość */
+.content-pane {
+    -fx-padding: 0 0 0 14;
+}
+
+.content-pane > * {
+    -fx-background-color: white;
+    -fx-background-radius: 14;
+    -fx-padding: 14;
+    -fx-effect: dropshadow(gaussian, rgba(17, 24, 39, 0.10), 14, 0, 0, 4);
 }
 
 .section-title {
     -fx-font-size: 16px;
     -fx-font-weight: bold;
+    -fx-text-fill: #111827;
 }
 
 .api-info {
     -fx-font-size: 13px;
+    -fx-text-fill: #6b7280;
 }
 
 .result {
     -fx-font-size: 14px;
     -fx-font-weight: bold;
+    -fx-text-fill: #374151;
 }
 
+/* Przyciski */
 .button {
     -fx-cursor: hand;
+    -fx-background-color: #e5e7eb;
+    -fx-text-fill: #111827;
+    -fx-background-radius: 8;
+    -fx-padding: 7 12 7 12;
+    -fx-border-color: #d1d5db;
+    -fx-border-radius: 8;
 }
 
+.button:hover {
+    -fx-background-color: #d1d5db;
+}
+
+.button:pressed {
+    -fx-background-color: #9ca3af;
+    -fx-text-fill: white;
+}
+
+/* Pola formularzy */
+.text-field,
+.combo-box {
+    -fx-background-color: #f9fafb;
+    -fx-border-color: #d1d5db;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 6 8 6 8;
+}
+
+.text-field:focused,
+.combo-box:focused {
+    -fx-border-color: #6b7280;
+}
+
+/* Wybrany element w ComboBox */
+.combo-box .list-cell {
+    -fx-text-fill: #111827;
+}
+
+/* Tabele */
 .table-view {
     -fx-background-color: white;
+    -fx-border-color: #e5e7eb;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #f3f4f6;
+    -fx-background-radius: 10 10 0 0;
+}
+
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #e5e7eb transparent;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #374151;
+    -fx-font-weight: bold;
+}
+
+.table-row-cell {
+    -fx-background-color: white;
+    -fx-border-color: transparent transparent #f3f4f6 transparent;
+}
+
+.table-row-cell:hover {
+    -fx-background-color: #f9fafb;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #d1d5db;
+}
+
+.table-row-cell:selected .text {
+    -fx-fill: #111827;
+}
+
+/* Scrollbar — delikatniejszy wygląd */
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 8;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #94a3b8;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
 }

@@ -6,9 +6,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.example</groupId>
-    <artifactId>javafx-api-client-all</artifactId>
+    <artifactId>javafx-api-client-stock-validation</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>javafx-api-client-all</name>
+    <name>javafx-api-client-stock-validation</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -58,4 +58,5 @@
             </plugin>
         </plugins>
     </build>
+
 </project>
