@@ -6,14 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.example</groupId>
-    <artifactId>javafx-intellij-skeleton</artifactId>
+    <artifactId>javafx-api-client-all</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>javafx-intellij-skeleton</name>
+    <name>javafx-api-client-all</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <javafx.version>21.0.8</javafx.version>
+        <jackson.version>2.17.2</jackson.version>
     </properties>
 
     <dependencies>
@@ -27,6 +28,12 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
         </dependency>
     </dependencies>
 
@@ -51,5 +58,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>

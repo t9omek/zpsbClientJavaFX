@@ -1,37 +1,41 @@
-# Wymagania
+# JavaFX klient zpsbAPI
 
-- JDK 21
-- IntelliJ IDEA
-- Maven, może być wbudowany w IntelliJ
+Aplikacja JavaFX konsumująca API FastAPI z projektu `zpsbAPI`.
 
-## Uruchomienie w IntelliJ IDEA
+## Funkcje
 
-1. Otwórz IntelliJ IDEA.
-2. Wybierz `File -> Open`.
-3. Wskaż folder projektu albo plik `pom.xml`.
-4. Poczekaj, aż Maven pobierze zależności.
-5. Uruchom aplikację przez Maven:
+- CRUD dla głównych encji API: klienci, adresy, pracownicy, statusy, dostawy, produkty, magazyny, zamówienia i pozycje zamówień.
+- Zakładka **Sprzedaż** pozwalająca przejść flow sprzedaży bez zmian w backendzie:
+  1. wybór klienta, pracownika, statusu, płatności i dostawy,
+  2. dodanie produktów do koszyka,
+  3. utworzenie dostawy,
+  4. utworzenie zamówienia,
+  5. utworzenie pozycji zamówienia.
+- Zakładka **Sprzedaże** pokazująca listę sprzedaży/zamówień, ich status, klienta, pracownika, formę płatności, dostawę oraz wartość. Po kliknięciu sprzedaży widoczne są jej pozycje.
+
+## Uruchomienie
+
+Najpierw uruchom backend:
+
+```bash
+uvicorn server:app --reload
+```
+
+Potem uruchom klienta:
 
 ```bash
 mvn javafx:run
 ```
 
-Możesz też w IntelliJ otworzyć panel `Maven`, znaleźć plugin `javafx` i uruchomić goal `javafx:run`.
-
-## Struktura
+Domyślna konfiguracja API:
 
 ```text
-src/
-  main/
-    java/
-      module-info.java
-      com/example/app/
-        App.java
-        MainController.java
-    resources/
-      com/example/app/
-        main-view.fxml
-        style.css
-pom.xml
+http://127.0.0.1:8000
+x-api-key: tajny-klucz-123
 ```
 
+Możesz zmienić adres i klucz przez parametry JVM:
+
+```bash
+mvn javafx:run -Dapi.baseUrl=http://127.0.0.1:8000 -Dapi.key=tajny-klucz-123
+```
