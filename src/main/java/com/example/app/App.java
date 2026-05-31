@@ -12,10 +12,10 @@ public class App extends Application {
     @Override
     public void start(Stage stage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource("main-view.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 600, 400);
+        Scene scene = new Scene(fxmlLoader.load(), 1150, 760);
         scene.getStylesheets().add(App.class.getResource("style.css").toExternalForm());
 
-        stage.setTitle("JavaFX Skeleton");
+        stage.setTitle("zpsbAPI - JavaFX API Client");
         stage.setScene(scene);
         stage.show();
     }
